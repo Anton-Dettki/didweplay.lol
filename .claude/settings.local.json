@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(pip install:*)",
+      "Bash(npm install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(npx shadcn-vue@latest:*)",
+      "Bash(curl -s https://shadcn-vue.com/r/styles/)",
+      "Bash(curl -s https://shadcn-vue.com/r/styles/reka-nova/button.json)",
+      "Bash(curl -s https://shadcn-vue.com/r/styles/default/button.json)",
+      "Bash(curl -s https://shadcn-vue.com/r/styles/new-york/button.json)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(uvicorn main:app --reload --port 8000)",
+      "Bash(curl -s http://localhost:8000/api/check)",
+      "Bash(curl -s http://localhost:5173)"
+    ]
+  }
+}
