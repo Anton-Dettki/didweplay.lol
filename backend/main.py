@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,16 +15,28 @@ from riot_api import API_KEY, get_match_detail, get_match_ids, get_puuid
 
 REQUEST_TIMEOUT = httpx.Timeout(30.0)
 MATCH_SCAN_BATCH_SIZE = 5
-SCAN_CACHE_DIR = Path(__file__).resolve().parent / ".cache" / "scans"
+DEFAULT_CACHE_ROOT = Path(__file__).resolve().parent / ".cache"
+CACHE_ROOT = Path(os.getenv("CACHE_DIR", DEFAULT_CACHE_ROOT))
+SCAN_CACHE_DIR = CACHE_ROOT / "scans"
+
+
+def get_allowed_origins() -> list[str]:
+    raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=get_allowed_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
 
 
 def sse_event(data: dict) -> str:

@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.getenv("RIOT_API_KEY", "")
-MATCH_CACHE_DIR = Path(__file__).resolve().parent / ".cache" / "matches"
+DEFAULT_CACHE_ROOT = Path(__file__).resolve().parent / ".cache"
+CACHE_ROOT = Path(os.getenv("CACHE_DIR", DEFAULT_CACHE_ROOT))
+MATCH_CACHE_DIR = CACHE_ROOT / "matches"
 
 REGION_URLS = {
     "europe": "https://europe.api.riotgames.com",
