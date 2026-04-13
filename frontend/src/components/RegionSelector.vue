@@ -18,7 +18,7 @@ const regions = [
 
 <template>
   <Select v-model="model">
-    <SelectTrigger class="w-[200px]">
+    <SelectTrigger class="w-full rounded-xl bg-background/80">
       <SelectValue placeholder="Select region" />
     </SelectTrigger>
     <SelectContent>

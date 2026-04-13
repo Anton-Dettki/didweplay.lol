@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
 
 @import "tailwindcss";
 
@@ -8,36 +8,26 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(240 10% 3.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(240 10% 3.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(240 10% 3.9%);
-  --color-primary: hsl(240 5.9% 10%);
-  --color-primary-foreground: hsl(0 0% 98%);
-  --color-secondary: hsl(240 4.8% 95.9%);
-  --color-secondary-foreground: hsl(240 5.9% 10%);
-  --color-muted: hsl(240 4.8% 95.9%);
-  --color-muted-foreground: hsl(240 3.8% 46.1%);
-  --color-accent: hsl(240 4.8% 95.9%);
-  --color-accent-foreground: hsl(240 5.9% 10%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(240 5.9% 90%);
-  --color-input: hsl(240 5.9% 90%);
-  --color-ring: hsl(240 5.9% 10%);
-  --radius: 0.5rem;
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    margin: 0;
-  }
+  --color-background: hsl(209 46% 8%);
+  --color-foreground: hsl(43 45% 92%);
+  --color-card: hsl(212 43% 12%);
+  --color-card-foreground: hsl(43 45% 92%);
+  --color-popover: hsl(212 43% 12%);
+  --color-popover-foreground: hsl(43 45% 92%);
+  --color-primary: hsl(43 74% 58%);
+  --color-primary-foreground: hsl(212 56% 10%);
+  --color-secondary: hsl(198 47% 22%);
+  --color-secondary-foreground: hsl(43 45% 92%);
+  --color-muted: hsl(211 33% 16%);
+  --color-muted-foreground: hsl(206 14% 70%);
+  --color-accent: hsl(194 71% 46%);
+  --color-accent-foreground: hsl(212 56% 10%);
+  --color-destructive: hsl(3 75% 58%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-border: hsl(198 33% 25%);
+  --color-input: hsl(198 33% 25%);
+  --color-ring: hsl(43 74% 58%);
+  --radius: 1rem;
 }
 
 .dark {
@@ -63,14 +53,46 @@
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground;
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+    background-image:
+      radial-gradient(circle at top center, rgba(56, 189, 248, 0.16), transparent 24%),
+      radial-gradient(circle at 20% 20%, rgba(245, 195, 77, 0.18), transparent 18%),
+      radial-gradient(circle at 80% 10%, rgba(34, 211, 238, 0.12), transparent 16%),
+      linear-gradient(180deg, hsl(212 52% 10%), hsl(210 48% 7%) 38%, hsl(215 49% 6%));
+    background-attachment: fixed;
+  }
+
+  #app {
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.04em;
+  }
+
+  ::selection {
+    background: rgba(245, 195, 77, 0.26);
+    color: hsl(212 56% 10%);
   }
 }

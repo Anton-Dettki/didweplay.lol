@@ -1,8 +1,11 @@
-import { ref } from 'vue'
+import { ref, type Ref } from 'vue'
+
+const API_BASE_URL = 'http://localhost:8000'
 
 export interface PlayerInfo {
   name: string
   tag: string
+  puuid?: string | null
 }
 
 export interface MatchPlayer {
@@ -50,32 +53,67 @@ export interface MatchupResult {
   }
 }
 
-export function useMatchupCheck() {
+export interface RepeatTeammate {
+  puuid: string
+  name: string
+  tag: string
+  games_met: number
+  games_together: number
+  opponent_games: number
+  wins_together: number
+  last_played: number
+  game_modes: string[]
+}
+
+export interface RepeatTeammatesResult {
+  player: PlayerInfo
+  total_matches_scanned: number
+  total_repeat_teammates: number
+  teammates: RepeatTeammate[]
+}
+
+export interface MatchupPairRequest {
+  player1Name: string
+  player1Tag: string
+  player1Puuid: string
+  player2Name: string
+  player2Tag: string
+  player2Puuid: string
+  region: string
+}
+
+interface StreamState<T> {
+  loading: Ref<boolean>
+  progress: Ref<string>
+  result: Ref<T | null>
+  error: Ref<string>
+  run: (endpoint: string, params: Record<string, string>) => Promise<void>
+}
+
+function createStreamingRequest<T>(): StreamState<T> {
   const loading = ref(false)
   const progress = ref('')
-  const result = ref<MatchupResult | null>(null)
+  const result = ref<T | null>(null) as Ref<T | null>
   const error = ref('')
 
-  async function check(player1: string, player2: string, region: string) {
+  async function run(endpoint: string, params: Record<string, string>) {
     loading.value = true
     progress.value = ''
     result.value = null
     error.value = ''
 
     try {
-      const params = new URLSearchParams({ player1, player2, region })
-      const response = await fetch(`http://localhost:8000/api/check?${params}`)
+      const query = new URLSearchParams(params)
+      const response = await fetch(`${API_BASE_URL}${endpoint}?${query}`)
 
       if (!response.ok) {
         error.value = `Server error: ${response.status}`
-        loading.value = false
         return
       }
 
       const reader = response.body?.getReader()
       if (!reader) {
         error.value = 'No response stream'
-        loading.value = false
         return
       }
 
@@ -93,14 +131,18 @@ export function useMatchupCheck() {
         for (const line of lines) {
           const dataLine = line.trim()
           if (!dataLine.startsWith('data: ')) continue
-          const json = JSON.parse(dataLine.slice(6))
 
-          if (json.type === 'progress') {
-            progress.value = json.message
-          } else if (json.type === 'result') {
-            result.value = json.data
-          } else if (json.type === 'error') {
-            error.value = json.message
+          const event = JSON.parse(dataLine.slice(6)) as
+            | { type: 'progress'; message: string }
+            | { type: 'result'; data: T }
+            | { type: 'error'; message: string }
+
+          if (event.type === 'progress') {
+            progress.value = event.message
+          } else if (event.type === 'result') {
+            result.value = event.data
+          } else if (event.type === 'error') {
+            error.value = event.message
           }
         }
       }
@@ -111,5 +153,38 @@ export function useMatchupCheck() {
     }
   }
 
-  return { loading, progress, result, error, check }
+  return { loading, progress, result, error, run }
+}
+
+export function useMatchupCheck() {
+  const request = createStreamingRequest<MatchupResult>()
+
+  return {
+    loading: request.loading,
+    progress: request.progress,
+    result: request.result,
+    error: request.error,
+    check: (player1: string, player2: string, region: string) => request.run('/api/check', { player1, player2, region }),
+    checkPair: (pair: MatchupPairRequest) => request.run('/api/check-pair', {
+      player1_name: pair.player1Name,
+      player1_tag: pair.player1Tag,
+      player1_puuid: pair.player1Puuid,
+      player2_name: pair.player2Name,
+      player2_tag: pair.player2Tag,
+      player2_puuid: pair.player2Puuid,
+      region: pair.region,
+    }),
+  }
+}
+
+export function useRepeatTeammatesCheck() {
+  const request = createStreamingRequest<RepeatTeammatesResult>()
+
+  return {
+    loading: request.loading,
+    progress: request.progress,
+    result: request.result,
+    error: request.error,
+    check: (player: string, region: string) => request.run('/api/repeat-teammates', { player, region }),
+  }
 }

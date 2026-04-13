@@ -1,8 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Card, CardContent } from '@/components/ui/card'
+import { ArrowUpRight } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import type { MatchDetail, PlayerInfo } from '@/lib/api'
+import {
+  formatCompactNumber,
+  formatDuration,
+  formatLabel,
+  formatMatchDate,
+  formatPatch,
+  formatPosition,
+  formatRelativeTime,
+  getKdaRatio,
+  getLeagueOfGraphsMatchUrl,
+  getOpggSummonerUrl,
+} from '@/lib/matches'
 
 const props = defineProps<{
   match: MatchDetail
@@ -12,79 +26,144 @@ const props = defineProps<{
 
 const DDRAGON = 'https://ddragon.leagueoflegends.com/cdn/14.10.1/img/champion'
 
-const date = computed(() => {
-  if (!props.match.timestamp) return '?'
-  return new Date(props.match.timestamp).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-})
+const date = computed(() => formatMatchDate(props.match.timestamp))
+const relativeDate = computed(() => formatRelativeTime(props.match.timestamp))
+const duration = computed(() => formatDuration(props.match.duration))
+const patch = computed(() => formatPatch(props.match.game_version))
+const matchUrl = computed(() => getLeagueOfGraphsMatchUrl(props.match))
 
-const duration = computed(() => {
-  const s = props.match.duration
-  if (!s) return ''
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  return `${m}:${sec.toString().padStart(2, '0')}`
-})
+const playerCards = computed(() => [
+  {
+    info: props.player1,
+    stats: props.match.player1,
+    profileUrl: getOpggSummonerUrl(props.player1, props.match.platform_id, props.match.match_id),
+  },
+  {
+    info: props.player2,
+    stats: props.match.player2,
+    profileUrl: getOpggSummonerUrl(props.player2, props.match.platform_id, props.match.match_id),
+  },
+])
 </script>
 
 <template>
-  <Card class="w-full">
-    <CardContent class="p-4">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-          <Badge :variant="match.same_team ? 'secondary' : 'destructive'">
-            {{ match.same_team ? 'Same Team' : 'Opponents' }}
-          </Badge>
-          <Badge variant="outline">{{ match.game_mode }}</Badge>
+  <Card class="w-full border-primary/20 bg-card/90 shadow-sm backdrop-blur">
+    <CardHeader class="border-b border-primary/15 bg-background/55">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <Badge :variant="match.same_team ? 'secondary' : 'destructive'">
+              {{ match.same_team ? 'Same Banner' : 'Enemy Side' }}
+            </Badge>
+            <Badge variant="outline">{{ match.game_mode }}</Badge>
+            <Badge variant="outline">Patch {{ patch }}</Badge>
+            <Badge variant="outline">{{ formatLabel(match.game_type) }}</Badge>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+            <span>{{ date }}</span>
+            <span>{{ relativeDate }}</span>
+            <span>{{ duration }}</span>
+          </div>
         </div>
-        <div class="text-sm text-muted-foreground">
-          {{ date }}
-          <span v-if="duration" class="ml-2">{{ duration }}</span>
-        </div>
+
+        <code class="w-fit rounded-lg bg-muted px-3 py-1 text-xs text-muted-foreground">
+          {{ match.match_id }}
+        </code>
       </div>
+    </CardHeader>
 
-      <div class="grid grid-cols-2 gap-4">
-        <!-- Player 1 -->
-        <div class="flex items-center gap-3" :class="{ 'opacity-50': !match.player1.win }">
+    <CardContent class="grid gap-4 pt-5 lg:grid-cols-2">
+      <div
+        v-for="player in playerCards"
+        :key="player.info.name + player.info.tag"
+        class="rounded-[1.5rem] border border-primary/15 bg-background/75 p-4"
+      >
+        <div class="flex items-start gap-4">
           <img
-            :src="`${DDRAGON}/${match.player1.champion}.png`"
-            :alt="match.player1.champion"
-            class="w-10 h-10 rounded-lg"
+            :src="`${DDRAGON}/${player.stats.champion}.png`"
+            :alt="player.stats.champion"
+            class="size-14 rounded-xl border border-primary/15 bg-muted object-cover"
             @error="($event.target as HTMLImageElement).style.display = 'none'"
           />
-          <div>
-            <div class="font-medium text-sm">{{ player1.name }}</div>
-            <div class="text-xs text-muted-foreground">{{ match.player1.champion }}</div>
-            <div class="text-sm font-mono">
-              {{ match.player1.kills }}/{{ match.player1.deaths }}/{{ match.player1.assists }}
+
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="truncate text-base font-semibold">
+                {{ player.info.name }}#{{ player.info.tag }}
+              </div>
+              <Badge :variant="player.stats.win ? 'default' : 'secondary'">
+                {{ player.stats.win ? 'Win' : 'Loss' }}
+              </Badge>
+            </div>
+
+            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>{{ player.stats.champion }}</span>
+              <span>•</span>
+              <span>{{ formatPosition(player.stats.position) }}</span>
+              <span>•</span>
+              <span>Lvl {{ player.stats.level }}</span>
             </div>
           </div>
-          <Badge :variant="match.player1.win ? 'default' : 'secondary'" class="ml-auto text-xs">
-            {{ match.player1.win ? 'Win' : 'Loss' }}
-          </Badge>
         </div>
 
-        <!-- Player 2 -->
-        <div class="flex items-center gap-3" :class="{ 'opacity-50': !match.player2.win }">
-          <img
-            :src="`${DDRAGON}/${match.player2.champion}.png`"
-            :alt="match.player2.champion"
-            class="w-10 h-10 rounded-lg"
-            @error="($event.target as HTMLImageElement).style.display = 'none'"
-          />
-          <div>
-            <div class="font-medium text-sm">{{ player2.name }}</div>
-            <div class="text-xs text-muted-foreground">{{ match.player2.champion }}</div>
-            <div class="text-sm font-mono">
-              {{ match.player2.kills }}/{{ match.player2.deaths }}/{{ match.player2.assists }}
+        <div class="mt-4 grid grid-cols-2 gap-3">
+          <div class="rounded-xl bg-muted/70 p-3 ring-1 ring-primary/8">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">KDA</div>
+            <div class="mt-1 text-lg font-semibold">
+              {{ player.stats.kills }}/{{ player.stats.deaths }}/{{ player.stats.assists }}
             </div>
+            <div class="text-xs text-muted-foreground">{{ getKdaRatio(player.stats) }} ratio</div>
           </div>
-          <Badge :variant="match.player2.win ? 'default' : 'secondary'" class="ml-auto text-xs">
-            {{ match.player2.win ? 'Win' : 'Loss' }}
-          </Badge>
+
+          <div class="rounded-xl bg-muted/70 p-3 ring-1 ring-primary/8">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Damage</div>
+            <div class="mt-1 text-lg font-semibold">{{ formatCompactNumber(player.stats.damage) }}</div>
+            <div class="text-xs text-muted-foreground">champion damage</div>
+          </div>
+
+          <div class="rounded-xl bg-muted/70 p-3 ring-1 ring-primary/8">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Farming</div>
+            <div class="mt-1 text-lg font-semibold">{{ player.stats.cs }}</div>
+            <div class="text-xs text-muted-foreground">total CS</div>
+          </div>
+
+          <div class="rounded-xl bg-muted/70 p-3 ring-1 ring-primary/8">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Vision / Gold</div>
+            <div class="mt-1 text-lg font-semibold">{{ player.stats.vision_score }}</div>
+            <div class="text-xs text-muted-foreground">{{ formatCompactNumber(player.stats.gold_earned) }} gold</div>
+          </div>
         </div>
       </div>
     </CardContent>
+
+    <CardFooter class="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="text-xs text-muted-foreground">
+        External links follow the exact platform for this recorded game.
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <Button v-if="matchUrl" size="sm" as-child>
+          <a :href="matchUrl" target="_blank" rel="noreferrer">
+            Open Match Page
+            <ArrowUpRight class="size-4" />
+          </a>
+        </Button>
+
+        <template v-for="player in playerCards" :key="`${player.info.name}-${player.info.tag}-profile`">
+          <Button
+            v-if="player.profileUrl"
+            variant="outline"
+            size="sm"
+            as-child
+          >
+            <a :href="player.profileUrl ?? undefined" target="_blank" rel="noreferrer">
+              {{ player.info.name }} on OP.GG
+              <ArrowUpRight class="size-4" />
+            </a>
+          </Button>
+        </template>
+      </div>
+    </CardFooter>
   </Card>
 </template>
