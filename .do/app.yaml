@@ -27,9 +27,6 @@ services:
       - key: CORS_ORIGINS
         scope: RUN_TIME
         value: https://replace-me-with-frontend-url.ondigitalocean.app
-      - key: CACHE_DIR
-        scope: RUN_TIME
-        value: /tmp/did-we-play-before-cache
 
 static_sites:
   - name: web

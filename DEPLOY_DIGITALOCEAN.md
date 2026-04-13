@@ -32,7 +32,6 @@ In DigitalOcean:
 6. Add environment variables:
    - `RIOT_API_KEY` as a secret
    - `CORS_ORIGINS` temporarily as `https://placeholder.example`
-   - `CACHE_DIR` as `/tmp/did-we-play-before-cache`
 7. Deploy.
 
 After deploy, copy the backend URL.
@@ -70,17 +69,7 @@ Before using it, replace:
 - `https://replace-me-with-frontend-url.ondigitalocean.app`
 - `https://replace-me-with-api-url.ondigitalocean.app`
 
-## 7. Important limitation
-
-App Platform filesystem storage is ephemeral. That means:
-
-- `CACHE_DIR=/tmp/did-we-play-before-cache` improves reuse on the same running instance
-- cache can disappear on restart or redeploy
-- cache is not shared across multiple instances
-
-If you want durable shared caching later, move the scan cache from disk to Redis, Postgres, or another managed store.
-
-## 8. Health check
+## 7. Health check
 
 The backend exposes:
 

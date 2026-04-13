@@ -1,8 +1,6 @@
 """Async Riot API client for League of Legends match lookups."""
 
-import json
 import os
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -11,9 +9,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.getenv("RIOT_API_KEY", "")
-DEFAULT_CACHE_ROOT = Path(__file__).resolve().parent / ".cache"
-CACHE_ROOT = Path(os.getenv("CACHE_DIR", DEFAULT_CACHE_ROOT))
-MATCH_CACHE_DIR = CACHE_ROOT / "matches"
 
 REGION_URLS = {
     "europe": "https://europe.api.riotgames.com",
@@ -98,18 +93,6 @@ async def get_match_detail(
     *,
     client: httpx.AsyncClient | None = None,
 ) -> dict:
-    cache_path = MATCH_CACHE_DIR / region / f"{match_id}.json"
-    if cache_path.exists():
-        try:
-            return json.loads(cache_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            cache_path.unlink(missing_ok=True)
-
     base = REGION_URLS[region]
     url = f"{base}/lol/match/v5/matches/{match_id}"
-    detail = await _get_json(url, client=client)
-
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(detail), encoding="utf-8")
-
-    return detail
+    return await _get_json(url, client=client)

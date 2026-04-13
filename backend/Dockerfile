@@ -11,8 +11,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV PORT=8000
-ENV CACHE_DIR=/tmp/did-we-play-before-cache
-
-RUN mkdir -p /tmp/did-we-play-before-cache
 
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

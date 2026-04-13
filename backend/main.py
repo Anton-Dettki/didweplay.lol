@@ -3,8 +3,6 @@
 import asyncio
 import json
 import os
-from pathlib import Path
-from typing import Any
 
 import httpx
 from fastapi import FastAPI, Query
@@ -15,14 +13,12 @@ from riot_api import API_KEY, get_match_detail, get_match_ids, get_puuid
 
 REQUEST_TIMEOUT = httpx.Timeout(30.0)
 MATCH_SCAN_BATCH_SIZE = 5
-DEFAULT_CACHE_ROOT = Path(__file__).resolve().parent / ".cache"
-CACHE_ROOT = Path(os.getenv("CACHE_DIR", DEFAULT_CACHE_ROOT))
-SCAN_CACHE_DIR = CACHE_ROOT / "scans"
 
 
 def get_allowed_origins() -> list[str]:
     raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173")
     return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
 
 app = FastAPI()
 
@@ -60,7 +56,14 @@ def player_label(name: str, tag: str) -> str:
     return f"{name}#{tag}" if tag else name
 
 
-def empty_matchup_result(name1: str, tag1: str, puuid1: str | None, name2: str, tag2: str, puuid2: str | None) -> dict:
+def empty_matchup_result(
+    name1: str,
+    tag1: str,
+    puuid1: str | None,
+    name2: str,
+    tag2: str,
+    puuid2: str | None,
+) -> dict:
     return {
         "player1": {"name": name1, "tag": tag1, "puuid": puuid1},
         "player2": {"name": name2, "tag": tag2, "puuid": puuid2},
@@ -84,154 +87,6 @@ def extract_participant_identity(participant: dict) -> tuple[str, str]:
     )
     tag = participant.get("riotIdTagline") or ""
     return str(name), str(tag)
-
-
-def scan_cache_path(region: str, puuid: str) -> Path:
-    return SCAN_CACHE_DIR / region / f"{puuid}.json"
-
-
-def load_scan_cache(region: str, puuid: str) -> dict[str, Any] | None:
-    path = scan_cache_path(region, puuid)
-    if not path.exists():
-        return None
-
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        path.unlink(missing_ok=True)
-        return None
-
-    return data if isinstance(data, dict) else None
-
-
-def save_scan_cache(region: str, puuid: str, data: dict[str, Any]) -> None:
-    path = scan_cache_path(region, puuid)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
-
-
-def get_cached_match_ids(scan_cache: dict[str, Any] | None) -> list[str]:
-    if not scan_cache:
-        return []
-
-    match_ids = scan_cache.get("match_ids")
-    if not isinstance(match_ids, list):
-        return []
-
-    return [match_id for match_id in match_ids if isinstance(match_id, str)]
-
-
-def get_cached_met_player(scan_cache: dict[str, Any] | None, other_puuid: str) -> dict[str, Any] | None:
-    if not scan_cache:
-        return None
-
-    met_players = scan_cache.get("met_players")
-    if not isinstance(met_players, dict):
-        return None
-
-    entry = met_players.get(other_puuid)
-    return entry if isinstance(entry, dict) else None
-
-
-def get_cached_shared_match_ids(scan_cache: dict[str, Any] | None, other_puuid: str) -> list[str]:
-    cached_player = get_cached_met_player(scan_cache, other_puuid)
-    if not cached_player:
-        return []
-
-    shared_match_ids = cached_player.get("shared_match_ids")
-    if not isinstance(shared_match_ids, list):
-        return []
-
-    return [match_id for match_id in shared_match_ids if isinstance(match_id, str)]
-
-
-def load_met_players(scan_cache: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
-    if not scan_cache:
-        return {}
-
-    raw_met_players = scan_cache.get("met_players")
-    if not isinstance(raw_met_players, dict):
-        return {}
-
-    met_players: dict[str, dict[str, Any]] = {}
-    for puuid, raw_entry in raw_met_players.items():
-        if not isinstance(puuid, str) or not isinstance(raw_entry, dict):
-            continue
-
-        raw_modes = raw_entry.get("game_modes")
-        raw_shared_match_ids = raw_entry.get("shared_match_ids")
-
-        met_players[puuid] = {
-            "puuid": raw_entry.get("puuid", puuid),
-            "name": str(raw_entry.get("name") or "Unknown Player"),
-            "tag": str(raw_entry.get("tag") or ""),
-            "games_met": int(raw_entry.get("games_met", 0)),
-            "games_together": int(raw_entry.get("games_together", 0)),
-            "opponent_games": int(raw_entry.get("opponent_games", 0)),
-            "wins_together": int(raw_entry.get("wins_together", 0)),
-            "last_played": int(raw_entry.get("last_played", 0)),
-            "game_modes": set(mode for mode in raw_modes if isinstance(mode, str)) if isinstance(raw_modes, list) else set(),
-            "shared_match_ids": [match_id for match_id in raw_shared_match_ids if isinstance(match_id, str)] if isinstance(raw_shared_match_ids, list) else [],
-        }
-
-    return met_players
-
-
-def serialize_met_players(met_players: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    return {
-        puuid: {
-            "puuid": entry["puuid"],
-            "name": entry["name"],
-            "tag": entry["tag"],
-            "games_met": entry["games_met"],
-            "games_together": entry["games_together"],
-            "opponent_games": entry["opponent_games"],
-            "wins_together": entry["wins_together"],
-            "last_played": entry["last_played"],
-            "game_modes": sorted(entry["game_modes"]),
-            "shared_match_ids": entry["shared_match_ids"],
-        }
-        for puuid, entry in met_players.items()
-    }
-
-
-def build_repeat_teammates_result(
-    name: str,
-    tag: str,
-    puuid: str,
-    total_matches_scanned: int,
-    met_players: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
-    repeated_teammates = [
-        {
-            "puuid": teammate["puuid"],
-            "name": teammate["name"],
-            "tag": teammate["tag"],
-            "games_met": teammate["games_met"],
-            "games_together": teammate["games_together"],
-            "opponent_games": teammate["opponent_games"],
-            "wins_together": teammate["wins_together"],
-            "last_played": teammate["last_played"],
-            "game_modes": sorted(teammate["game_modes"]),
-        }
-        for teammate in met_players.values()
-        if teammate["games_together"] > 1
-    ]
-    repeated_teammates.sort(
-        key=lambda teammate: (
-            -teammate["games_together"],
-            -teammate["last_played"],
-            teammate["name"].lower(),
-            teammate["tag"].lower(),
-        )
-    )
-
-    return {
-        "player": {"name": name, "tag": tag, "puuid": puuid},
-        "total_matches_scanned": total_matches_scanned,
-        "total_repeat_teammates": len(repeated_teammates),
-        "teammates": repeated_teammates,
-    }
 
 
 async def safe_get_match_detail(
@@ -283,63 +138,27 @@ async def stream_matchup_result(
                     })
                     return
 
-            scan_cache1 = load_scan_cache(region, player1_puuid)
-            scan_cache2 = load_scan_cache(region, player2_puuid)
+            yield sse_event({
+                "type": "progress",
+                "message": f"Fetching match history for {player_label(player1_name, player1_tag)}...",
+            })
+            matches1 = set(await get_match_ids(player1_puuid, region, client=client))
+            yield sse_event({
+                "type": "progress",
+                "message": f"Found {len(matches1)} matches for {player_label(player1_name, player1_tag)}",
+            })
 
-            cached_shared_match_ids = get_cached_shared_match_ids(scan_cache1, player2_puuid)
-            if cached_shared_match_ids:
-                common = set(cached_shared_match_ids)
-                yield sse_event({
-                    "type": "progress",
-                    "message": f"Using cached shared match IDs from {player_label(player1_name, player1_tag)}'s scout report...",
-                })
-            else:
-                cached_shared_match_ids = get_cached_shared_match_ids(scan_cache2, player1_puuid)
-                if cached_shared_match_ids:
-                    common = set(cached_shared_match_ids)
-                    yield sse_event({
-                        "type": "progress",
-                        "message": f"Using cached shared match IDs from {player_label(player2_name, player2_tag)}'s scout report...",
-                    })
-                else:
-                    cached_match_ids1 = get_cached_match_ids(scan_cache1)
-                    if cached_match_ids1:
-                        matches1 = set(cached_match_ids1)
-                        yield sse_event({
-                            "type": "progress",
-                            "message": f"Using {len(matches1)} cached match IDs for {player_label(player1_name, player1_tag)}...",
-                        })
-                    else:
-                        yield sse_event({
-                            "type": "progress",
-                            "message": f"Fetching match history for {player_label(player1_name, player1_tag)}...",
-                        })
-                        matches1 = set(await get_match_ids(player1_puuid, region, client=client))
-                        yield sse_event({
-                            "type": "progress",
-                            "message": f"Found {len(matches1)} matches for {player_label(player1_name, player1_tag)}",
-                        })
+            yield sse_event({
+                "type": "progress",
+                "message": f"Fetching match history for {player_label(player2_name, player2_tag)}...",
+            })
+            matches2 = set(await get_match_ids(player2_puuid, region, client=client))
+            yield sse_event({
+                "type": "progress",
+                "message": f"Found {len(matches2)} matches for {player_label(player2_name, player2_tag)}",
+            })
 
-                    cached_match_ids2 = get_cached_match_ids(scan_cache2)
-                    if cached_match_ids2:
-                        matches2 = set(cached_match_ids2)
-                        yield sse_event({
-                            "type": "progress",
-                            "message": f"Using {len(matches2)} cached match IDs for {player_label(player2_name, player2_tag)}...",
-                        })
-                    else:
-                        yield sse_event({
-                            "type": "progress",
-                            "message": f"Fetching match history for {player_label(player2_name, player2_tag)}...",
-                        })
-                        matches2 = set(await get_match_ids(player2_puuid, region, client=client))
-                        yield sse_event({
-                            "type": "progress",
-                            "message": f"Found {len(matches2)} matches for {player_label(player2_name, player2_tag)}",
-                        })
-
-                    common = matches1 & matches2
-
+            common = matches1 & matches2
             if not common:
                 yield sse_event({
                     "type": "result",
@@ -562,37 +381,16 @@ async def repeat_teammates(
                     })
                     return
 
-                scan_cache = load_scan_cache(region, puuid)
-                cached_match_ids = get_cached_match_ids(scan_cache)
-                cached_match_id_set = set(cached_match_ids)
-                met_players = load_met_players(scan_cache)
-                pending_match_ids = [match_id for match_id in match_ids if match_id not in cached_match_id_set]
+                yield sse_event({
+                    "type": "progress",
+                    "message": f"Scanning {len(match_ids)} matches for repeat teammates...",
+                })
 
-                if not pending_match_ids and scan_cache:
-                    yield sse_event({
-                        "type": "progress",
-                        "message": f"Using cached scout report for {player_label(name, tag)}. No new matches to scan.",
-                    })
-                    yield sse_event({
-                        "type": "result",
-                        "data": build_repeat_teammates_result(name, tag, puuid, len(match_ids), met_players),
-                    })
-                    return
+                met_players: dict[str, dict[str, object]] = {}
+                total_matches = len(match_ids)
 
-                if scan_cache and cached_match_ids:
-                    yield sse_event({
-                        "type": "progress",
-                        "message": f"Loaded cached scan data for {len(cached_match_ids)} matches. Scanning {len(pending_match_ids)} new match(es)...",
-                    })
-                else:
-                    yield sse_event({
-                        "type": "progress",
-                        "message": f"Scanning {len(match_ids)} matches for people met and repeat teammates. Match details are cached locally.",
-                    })
-
-                total_new_matches = len(pending_match_ids)
-                for batch_start in range(0, total_new_matches, MATCH_SCAN_BATCH_SIZE):
-                    batch_ids = pending_match_ids[batch_start:batch_start + MATCH_SCAN_BATCH_SIZE]
+                for batch_start in range(0, total_matches, MATCH_SCAN_BATCH_SIZE):
+                    batch_ids = match_ids[batch_start:batch_start + MATCH_SCAN_BATCH_SIZE]
                     batch_details = await asyncio.gather(
                         *(safe_get_match_detail(match_id, region, client) for match_id in batch_ids)
                     )
@@ -600,13 +398,12 @@ async def repeat_teammates(
                     for offset, detail in enumerate(batch_details, start=batch_start + 1):
                         yield sse_event({
                             "type": "progress",
-                            "message": f"Scanning new match {offset}/{total_new_matches}...",
+                            "message": f"Scanning match {offset}/{total_matches}...",
                         })
 
                         if detail is None:
                             continue
 
-                        match_id = batch_ids[offset - batch_start - 1]
                         info = detail.get("info", {})
                         participants = info.get("participants", [])
                         current_player = next((participant for participant in participants if participant.get("puuid") == puuid), None)
@@ -634,13 +431,11 @@ async def repeat_teammates(
                                     "wins_together": 0,
                                     "last_played": 0,
                                     "game_modes": set(),
-                                    "shared_match_ids": [],
                                 },
                             )
 
                             met_player["games_met"] += 1
                             met_player["game_modes"].add(game_mode)
-                            met_player["shared_match_ids"].append(match_id)
 
                             if participant.get("teamId") == player_team_id:
                                 met_player["games_together"] += 1
@@ -655,23 +450,43 @@ async def repeat_teammates(
                                 met_player["tag"] = display_tag
                                 met_player["last_played"] = timestamp
 
-                save_scan_cache(
-                    region,
-                    puuid,
+                repeated_teammates = [
                     {
-                        "version": 2,
-                        "player": {"name": name, "tag": tag, "puuid": puuid},
-                        "match_ids": match_ids,
-                        "met_players": serialize_met_players(met_players),
-                    },
+                        "puuid": teammate["puuid"],
+                        "name": teammate["name"],
+                        "tag": teammate["tag"],
+                        "games_met": teammate["games_met"],
+                        "games_together": teammate["games_together"],
+                        "opponent_games": teammate["opponent_games"],
+                        "wins_together": teammate["wins_together"],
+                        "last_played": teammate["last_played"],
+                        "game_modes": sorted(teammate["game_modes"]),
+                    }
+                    for teammate in met_players.values()
+                    if teammate["games_together"] > 1
+                ]
+                repeated_teammates.sort(
+                    key=lambda teammate: (
+                        -teammate["games_together"],
+                        -teammate["last_played"],
+                        teammate["name"].lower(),
+                        teammate["tag"].lower(),
+                    )
                 )
 
-                result = build_repeat_teammates_result(name, tag, puuid, len(match_ids), met_players)
                 yield sse_event({
                     "type": "progress",
-                    "message": f"Found {result['total_repeat_teammates']} repeat teammate(s) for {player_label(name, tag)}.",
+                    "message": f"Found {len(repeated_teammates)} repeat teammate(s) for {player_label(name, tag)}.",
                 })
-                yield sse_event({"type": "result", "data": result})
+                yield sse_event({
+                    "type": "result",
+                    "data": {
+                        "player": {"name": name, "tag": tag, "puuid": puuid},
+                        "total_matches_scanned": total_matches,
+                        "total_repeat_teammates": len(repeated_teammates),
+                        "teammates": repeated_teammates,
+                    },
+                })
         except Exception as exc:
             yield sse_event({"type": "error", "message": str(exc)})
 
